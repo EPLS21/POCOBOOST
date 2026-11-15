@@ -118,6 +118,7 @@ class MainActivity : Activity() {
         root.addView(tv("Otimizar", 20f, txt, true), lp(28))
         secureStatus = tv("", 12f, sub)
         root.addView(secureStatus, lp(4))
+        root.addView(btn("🎮 Modo Jogo (liberar RAM e abrir o jogo)") { showGamePicker() }, lp(8))
         root.addView(btn("Animações rápidas (0.5x)") { animations(0.5f) }, lp(8))
         root.addView(btn("Desativar animações (máximo)") { animations(0f) }, lp(8))
         root.addView(btn("Restaurar animações (1x)") { animations(1f) }, lp(8))
@@ -158,6 +159,23 @@ class MainActivity : Activity() {
             box.addView(btn("Copiar") { copy(cmds) }, lp(8))
             root.addView(box, lp(10))
         }
+    }
+
+    private fun showGamePicker() {
+        val apps = GameMode.launchables(this)
+        val names = apps.map { it.label }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Escolha o jogo")
+            .setItems(names) { _, i ->
+                val g = apps[i]
+                val n = GameMode.freeMemory(this, g.pkg)
+                if (Scanner.hasSecureSettings(this)) Optimizer.setAnimations(this, 0.5f)
+                toast("$n apps de fundo fechados. Abrindo ${g.label}...")
+                val launch = packageManager.getLaunchIntentForPackage(g.pkg)
+                if (launch != null) startActivity(launch)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     override fun onResume() {
