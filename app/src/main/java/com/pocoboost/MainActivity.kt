@@ -33,6 +33,8 @@ class MainActivity : Activity() {
     private lateinit var scoreView: TextView
     private lateinit var secureStatus: TextView
     private lateinit var results: LinearLayout
+    private lateinit var shizukuStatus: TextView
+    private lateinit var shizukuLog: TextView
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
@@ -138,7 +140,38 @@ class MainActivity : Activity() {
             open(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
         }, lp(8))
 
-        root.addView(tv("Comandos ADB para o máximo de velocidade", 20f, txt, true), lp(28))
+        root.addView(tv("⚡ Ativar tudo pelo Shizuku", 20f, txt, true), lp(28))
+        shizukuStatus = tv("", 12f, sub)
+        root.addView(shizukuStatus, lp(4))
+        root.addView(btn("1) Conceder permissões ao app") {
+            runShizuku(
+                "Concedendo permissões",
+                listOf(
+                    "pm grant com.pocoboost android.permission.WRITE_SECURE_SETTINGS",
+                    "appops set com.pocoboost GET_USAGE_STATS allow"
+                )
+            )
+        }, lp(8))
+        root.addView(btn("2) Otimizar tudo (demora alguns minutos)") {
+            runShizuku(
+                "Otimizando",
+                listOf(
+                    "settings put global window_animation_scale 0.5",
+                    "settings put global transition_animation_scale 0.5",
+                    "settings put global animator_duration_scale 0.5",
+                    "pm trim-caches 999G",
+                    "cmd package bg-dexopt-job",
+                    "cmd package compile -m speed-profile -a"
+                )
+            )
+        }, lp(8))
+        shizukuLog = tv("", 11f, sub).apply {
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+        }
+        root.addView(shizukuLog, lp(8))
+
+        root.addView(tv("Comandos ADB (manual, se preferir)", 20f, txt, true), lp(28))
         root.addView(
             tv(
                 "Rode no PC com depuração USB ativa. Toque em Copiar e cole no terminal.",
@@ -159,6 +192,36 @@ class MainActivity : Activity() {
             box.addView(btn("Copiar") { copy(cmds) }, lp(8))
             root.addView(box, lp(10))
         }
+    }
+
+    private fun shizukuReady(): Boolean {
+        if (!ShizukuRunner.running()) {
+            toast("Shizuku não está ligado. Abra o Shizuku e toque em Iniciar.")
+            return false
+        }
+        if (!ShizukuRunner.hasPermission()) {
+            ShizukuRunner.requestPermission(77)
+            toast("Aceite a permissão do Shizuku e toque no botão de novo.")
+            return false
+        }
+        return true
+    }
+
+    private fun runShizuku(title: String, cmds: List<String>) {
+        if (!shizukuReady()) return
+        shizukuLog.text = "$title...\n"
+        Thread {
+            for (c in cmds) {
+                val out = ShizukuRunner.run(c)
+                runOnUiThread {
+                    shizukuLog.append("$ " + c + "\n" + (if (out.isEmpty()) "ok" else out) + "\n")
+                }
+            }
+            runOnUiThread {
+                shizukuLog.append("Pronto.\n")
+                runScan()
+            }
+        }.start()
     }
 
     private fun showGamePicker() {
@@ -200,6 +263,11 @@ class MainActivity : Activity() {
     }
 
     private fun runScan() {
+        shizukuStatus.text = when {
+            !ShizukuRunner.running() -> "Shizuku: desligado (abra o Shizuku e toque em Iniciar)"
+            !ShizukuRunner.hasPermission() -> "Shizuku: ligado, falta autorizar o PocoBoost"
+            else -> "Shizuku: pronto ✔"
+        }
         secureStatus.text = if (Scanner.hasSecureSettings(this))
             "Permissão avançada: ativa ✔"
         else
